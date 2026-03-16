@@ -383,12 +383,14 @@ export default function App() {
             <div className="flex flex-col items-center gap-8">
               <div className="p-6 bg-white rounded-3xl shadow-2xl shadow-orange-500/10">
                 <QRCodeSVG 
+                  key={shareUrl}
                   value={shareUrl} 
                   size={256}
                   level="H"
                   includeMargin={false}
                   fgColor="#000000"
                   bgColor="#FFFFFF"
+                  className="w-full h-auto max-w-[256px]"
                 />
               </div>
 
