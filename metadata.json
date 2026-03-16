@@ -1,0 +1,5 @@
+{
+  "name": "SwiftDrop",
+  "description": "A minimalist black and white QR code sharing platform. Upload files, images, videos, or text and share them instantly with a QR code. Content expires after 30 days.",
+  "requestFramePermissions": []
+}

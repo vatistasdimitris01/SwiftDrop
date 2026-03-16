@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "Share": {
+      "title": "Share",
+      "description": "A shared piece of content (text, image, video, or file).",
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "The actual content (text or base64 encoded data)."
+        },
+        "contentType": {
+          "type": "string",
+          "enum": ["text", "image", "video", "file"],
+          "description": "The type of content shared."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "Original filename if it was a file upload."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the share was created."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the share expires (30 days after creation)."
+        },
+        "authorId": {
+          "type": "string",
+          "description": "UID of the user who created the share."
+        }
+      },
+      "required": ["content", "contentType", "createdAt", "expiresAt"]
+    }
+  },
+  "firestore": {
+    "/shares/{shareId}": {
+      "schema": "Share",
+      "description": "Collection of shared items."
+    }
+  }
+}
