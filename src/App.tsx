@@ -125,10 +125,33 @@ export default function App() {
 
   // Check for share ID in URL on mount
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
+    const getShareId = () => {
+      // Try URLSearchParams first
+      const params = new URLSearchParams(window.location.search);
+      let id = params.get('id');
+      
+      // Fallback: manual regex check (sometimes search is empty on mobile redirects)
+      if (!id) {
+        const match = window.location.href.match(/[?&]id=([^&#]+)/);
+        id = match ? match[1] : null;
+      }
+      
+      // Check hash as well (some social apps move params to hash)
+      if (!id && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        id = hashParams.get('id');
+      }
+      
+      return id;
+    };
+
+    const id = getShareId();
     if (id) {
-      loadSharedContent(id);
+      // Small delay to ensure everything is initialized
+      const timer = setTimeout(() => {
+        loadSharedContent(id);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -136,11 +159,21 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
+      console.log('Loading shared content for ID:', id);
       const docRef = doc(db, 'shares', id);
-      const docSnap = await getDoc(docRef);
+      
+      // Try to get from server directly to avoid cache issues on mobile
+      let docSnap;
+      try {
+        docSnap = await getDocFromServer(docRef);
+      } catch (serverErr) {
+        console.warn('getDocFromServer failed, falling back to getDoc:', serverErr);
+        docSnap = await getDoc(docRef);
+      }
       
       if (docSnap.exists()) {
         const data = docSnap.data() as ShareData;
+        console.log('Content loaded successfully:', data.contentType);
         // Check expiration
         const now = Timestamp.now();
         if (data.expiresAt.toMillis() < now.toMillis()) {
@@ -152,11 +185,18 @@ export default function App() {
           setView('viewer');
         }
       } else {
-        setError('Content not found.');
+        console.error('Document does not exist for ID:', id);
+        setError('Content not found or has been deleted.');
         setView('upload');
       }
     } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `shares/${id}`);
+      console.error('Error in loadSharedContent:', err);
+      if (err instanceof Error && err.message.includes('permissions')) {
+        handleFirestoreError(err, OperationType.GET, `shares/${id}`);
+      } else {
+        setError(`Failed to load content: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setView('upload');
+      }
     } finally {
       setLoading(false);
     }
@@ -225,12 +265,32 @@ export default function App() {
     }
   };
 
-  const shareUrl = shareId ? `${window.location.origin}${window.location.pathname}?id=${shareId}` : '';
+  const getBaseUrl = () => {
+    const url = window.location.href.split(/[?#]/)[0];
+    return url.endsWith('/') ? url : url + '/';
+  };
 
-  const copyToClipboard = () => {
+  const shareUrl = shareId ? `${getBaseUrl()}?id=${shareId}` : '';
+
+  const copyToClipboard = async () => {
     if (shareUrl) {
-      navigator.clipboard.writeText(shareUrl);
-      alert('Link copied to clipboard!');
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Link copied to clipboard!');
+      } catch (err) {
+        // Fallback for browsers that don't support clipboard API or have issues
+        const textArea = document.createElement("textarea");
+        textArea.value = shareUrl;
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          alert('Link copied to clipboard!');
+        } catch (copyErr) {
+          console.error('Fallback copy failed', copyErr);
+        }
+        document.body.removeChild(textArea);
+      }
     }
   };
 
@@ -414,8 +474,11 @@ export default function App() {
                   onClick={() => {
                     if (navigator.share) {
                       navigator.share({
-                        title: 'Minimal Share',
+                        title: 'SwiftDrop',
                         url: shareUrl
+                      }).catch(err => {
+                        console.error('Share failed:', err);
+                        copyToClipboard();
                       });
                     } else {
                       copyToClipboard();
